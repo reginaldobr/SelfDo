@@ -182,12 +182,12 @@
         uid = Math.max(...parsed.map(t => t.id), 19) + 1;
         return parsed;
       }
-    } catch {}
+    } catch(e) {}
     return INIT;
   });
     const [page, setPage] = useState("hoje");
     useEffect(() => {
-    try { localStorage.setItem('selfdo-tasks', JSON.stringify(tasks)); } catch {}
+    localStorage.setItem('selfdo-tasks', JSON.stringify(tasks));
   }, [tasks]);
   const [fading, setFading] = useState(null);
     const [addOpen, setAddOpen] = useState(false);
