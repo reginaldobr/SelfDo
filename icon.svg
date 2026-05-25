@@ -1,0 +1,9 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Selfdo app icon</title>
+  <rect width="1024" height="1024" rx="224" fill="#0A0A14"/>
+  <path d="M 660,230 C 760,230 760,430 512,430 C 260,430 260,630 370,730"
+    fill="none" stroke="white" stroke-width="90" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="370,730 490,858 750,555"
+    fill="none" stroke="#0A84FF" stroke-width="90"
+    stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
