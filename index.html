@@ -38,7 +38,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script type="text/babel" data-presets="react">
-  const { useState } = React;
+  const { useState, useEffect } = React;
 
   const TODAY = new Date().toISOString().split("T")[0];
   const off = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; };
@@ -174,9 +174,22 @@
   ];
 
   function App() {
-    const [tasks, setTasks] = useState(INIT);
+    const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selfdo-tasks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        uid = Math.max(...parsed.map(t => t.id), 19) + 1;
+        return parsed;
+      }
+    } catch {}
+    return INIT;
+  });
     const [page, setPage] = useState("hoje");
-    const [fading, setFading] = useState(null);
+    useEffect(() => {
+    try { localStorage.setItem('selfdo-tasks', JSON.stringify(tasks)); } catch {}
+  }, [tasks]);
+  const [fading, setFading] = useState(null);
     const [addOpen, setAddOpen] = useState(false);
     const [actionId, setActionId] = useState(null);
     const [snoozeOpen, setSnoozeOpen] = useState(false);
