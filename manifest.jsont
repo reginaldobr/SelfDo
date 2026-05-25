@@ -1,0 +1,21 @@
+{
+  "name": "Selfdo",
+  "short_name": "Selfdo",
+  "description": "Seja seu próprio chefe. Organize suas tarefas com velocidade.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0A0A14",
+  "theme_color": "#0A0A14",
+  "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
