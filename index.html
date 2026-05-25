@@ -1,0 +1,497 @@
+import { useState } from "react";
+
+const TODAY = new Date().toISOString().split("T")[0];
+const off = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; };
+const fmtDate = (date, time) => {
+  if (!date) return null;
+  const m = { [TODAY]: "Hoje", [off(1)]: "Amanhã" };
+  const base = m[date] ?? new Date(date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return time ? `${base} · ${time}` : base;
+};
+
+let uid = 20;
+const INIT = [
+  { id: 1, name: "Reunião de equipe", date: off(-1), time: "09:00", parentId: null, completed: false },
+  { id: 2, name: "Estudar inglês", date: TODAY, time: "08:00", parentId: null, completed: false },
+  { id: 3, name: "Comprar tênis", date: TODAY, time: null, parentId: 4, completed: false },
+  { id: 4, name: "Projeto Academia", date: null, time: null, parentId: null, completed: false },
+  { id: 5, name: "Pesquisar destinos", date: off(1), time: null, parentId: 6, completed: true },
+  { id: 6, name: "Planejar Viagem", date: off(5), time: null, parentId: null, completed: false },
+  { id: 7, name: "Passagem aérea", date: off(3), time: null, parentId: 6, completed: false },
+  { id: 8, name: "Reservar hotel", date: off(4), time: null, parentId: 6, completed: false },
+];
+
+const TEMPLATES = [
+  { id: "manha", icon: "sunrise", name: "Rotina Matinal", color: "#FF9500", desc: "Comece o dia com energia", tasks: [{ name: "Exercício físico", time: "06:30" }, { name: "Meditação 10 min", time: "07:15" }, { name: "Café da manhã", time: "07:30" }, { name: "Planejar o dia", time: "08:00" }, { name: "Revisar metas" }] },
+  { id: "semana", icon: "target", name: "Semana Produtiva", color: "#0A84FF", desc: "Maximize sua produtividade", tasks: [{ name: "3 prioridades da semana" }, { name: "Limpar inbox" }, { name: "Bloquear tempo de foco" }, { name: "Revisão de progresso" }, { name: "Planejamento seguinte" }] },
+  { id: "viagem", icon: "plane", name: "Planejar Viagem", color: "#34C759", desc: "Organize sua próxima aventura", tasks: [{ name: "Pesquisar destinos" }, { name: "Comprar passagem" }, { name: "Reservar acomodação" }, { name: "Verificar documentos" }, { name: "Fazer mala" }, { name: "Check-in online" }] },
+  { id: "projeto", icon: "rocket", name: "Lançar Projeto", color: "#BF5AF2", desc: "Do conceito ao lançamento", tasks: [{ name: "Definir escopo" }, { name: "Pesquisa de mercado" }, { name: "Protótipo" }, { name: "Testes com usuários" }, { name: "Ajustes finais" }, { name: "Lançamento" }] },
+  { id: "academia", icon: "barbell", name: "Meta Academia", color: "#FF3B30", desc: "Alcance seus objetivos físicos", tasks: [{ name: "Definir treinos" }, { name: "Comprar tênis" }, { name: "Playlist de treino" }, { name: "Suplementos" }, { name: "Avaliação física" }] },
+  { id: "leitura", icon: "book", name: "Clube de Leitura", color: "#FF6B35", desc: "Leia mais, aprenda sempre", tasks: [{ name: "Escolher livro" }, { name: "30 min/dia de leitura" }, { name: "Anotar insights" }, { name: "Compartilhar aprendizados" }, { name: "Review do livro" }] },
+];
+
+const ST = { OVERDUE: 0, TODAY: 1, FUTURE: 2, DONE: 3 };
+const ST_LABEL = { 0: "Atrasadas", 1: "Hoje", 2: "Em breve", 3: "Concluídas" };
+const getStatus = t => { if (t.completed) return ST.DONE; if (!t.date) return ST.FUTURE; if (t.date < TODAY) return ST.OVERDUE; if (t.date === TODAY) return ST.TODAY; return ST.FUTURE; };
+
+const C = { bg: "#000", card: "#1c1c1e", card2: "#2c2c2e", card3: "#3a3a3c", text: "#fff", sub: "#8e8e93", muted: "#48484a", red: "#ff3b30", green: "#34c759", blue: "#0a84ff", border: "rgba(255,255,255,0.08)" };
+
+function usePressable() {
+  const [p, setP] = useState(false);
+  return { pressed: p, bind: { onMouseDown: () => setP(true), onMouseUp: () => setP(false), onMouseLeave: () => setP(false), onTouchStart: () => setP(true), onTouchEnd: () => setP(false) } };
+}
+
+const ICONS = {
+  sunrise: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v2M4.93 4.93l1.41 1.41M2 12h2M19.07 4.93l-1.41 1.41M22 12h-2"/><path d="M5 12a7 7 0 0 1 14 0"/><line x1="3" y1="20" x2="21" y2="20"/></svg>,
+  target: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  plane: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2c-.5.1-.9.5-1 1-.1.6.2 1.2.7 1.5L6 11l-2 3.5c-.3.6-.1 1.4.5 1.8l.5.3c.5.3 1.2.2 1.6-.2L8 15l3 3-.2 1.5c-.1.7.4 1.4 1.1 1.5.5.1 1-.1 1.3-.5z"/></svg>,
+  rocket: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>,
+  barbell: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="14.4" y="6" width="2.6" height="12" rx="1"/><rect x="7" y="6" width="2.6" height="12" rx="1"/><rect x="2" y="8.5" width="5" height="7" rx="1"/><rect x="17" y="8.5" width="5" height="7" rx="1"/><line x1="9.6" y1="12" x2="14.4" y2="12"/></svg>,
+  book: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+};
+
+function CircleBtn({ active, color, size = 30, fsize = 14, children, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ width: size, height: size, borderRadius: "50%", background: active ? color : "transparent", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: active ? "#fff" : color, fontSize: fsize, fontWeight: 700, boxShadow: p ? "none" : active ? `0 0 12px ${color}44` : "0 1px 4px rgba(0,0,0,0.6)", transform: p ? "scale(0.84)" : "scale(1)", transition: "all 0.12s ease", cursor: "pointer" }}>{children}</button>
+  );
+}
+
+function BtnPrimary({ children, onClick, disabled, color, noTop }) {
+  const { pressed: p, bind } = usePressable();
+  const bg = color || C.blue;
+  return (
+    <button onClick={onClick} disabled={disabled} {...bind} style={{ background: bg, border: "none", borderRadius: 13, padding: "14px", color: "#fff", fontSize: 17, fontWeight: 600, cursor: disabled ? "default" : "pointer", width: "100%", marginTop: noTop ? 0 : 4, opacity: disabled ? 0.4 : 1, transform: p ? "scale(0.97)" : "scale(1)", boxShadow: p ? "none" : `0 3px 12px ${bg}55`, transition: "all 0.1s ease" }}>{children}</button>
+  );
+}
+
+function BtnSecondary({ children, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ background: p ? C.card3 : C.card2, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 13, padding: "14px", color: C.text, fontSize: 16, cursor: "pointer", width: "100%", marginTop: 8, transform: p ? "scale(0.97)" : "scale(1)", transition: "all 0.1s ease" }}>{children}</button>
+  );
+}
+
+function ARow({ icon, label, sub, danger, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ background: p ? C.card3 : C.card2, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 13, padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", transform: p ? "scale(0.97)" : "scale(1)", boxShadow: p ? "none" : "0 1px 5px rgba(0,0,0,0.35)", transition: "all 0.1s ease" }}>
+      <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{icon}</span>
+      <div><div style={{ fontSize: 16, fontWeight: 500, color: danger ? C.red : C.text }}>{label}</div>{sub && <div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>{sub}</div>}</div>
+    </button>
+  );
+}
+
+function NavTab({ id, label, icon, active, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: active ? C.blue : C.muted, padding: "2px 0", transform: p ? "scale(0.82)" : "scale(1)", transition: "transform 0.12s ease" }}>
+      {icon}
+      <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, letterSpacing: 0.2 }}>{label}</span>
+    </button>
+  );
+}
+
+function TplCard({ tpl, isImported, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ background: p ? C.card2 : C.card, border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 16, padding: "18px 14px", cursor: "pointer", textAlign: "left", position: "relative", transform: p ? "scale(0.95)" : "scale(1)", boxShadow: p ? "none" : "0 2px 12px rgba(0,0,0,0.35)", transition: "all 0.1s ease" }}>
+      {isImported && <div style={{ position: "absolute", top: 10, right: 10, background: C.green, borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>✓</div>}
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: tpl.color + "22", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10, color: tpl.color }}>{ICONS[tpl.icon]}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 3 }}>{tpl.name}</div>
+      <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.4 }}>{tpl.desc}</div>
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{tpl.tasks.length} tarefas</div>
+    </button>
+  );
+}
+
+function TypePill({ opt, active, onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: `1.5px solid ${active ? C.blue : "rgba(255,255,255,0.1)"}`, background: active ? C.blue + "28" : C.card2, color: active ? C.blue : C.sub, fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", transform: p ? "scale(0.93)" : "scale(1)", boxShadow: active && !p ? `0 0 8px ${C.blue}33` : "none", transition: "all 0.1s ease" }}>{opt.label}</button>
+  );
+}
+
+function ContactRow({ item, index, isLast }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <>
+      {index > 0 && <div style={{ height: "0.5px", background: C.border, marginLeft: 16 }} />}
+      <button onClick={item.action} {...bind} style={{ width: "100%", padding: "13px 16px", background: p ? C.card2 : "transparent", border: "none", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "background 0.1s" }}>
+        <div><div style={{ fontSize: 15, color: C.text }}>{item.label}</div><div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>{item.sub}</div></div>
+        <span style={{ color: C.muted, fontSize: 20, fontWeight: 300 }}>›</span>
+      </button>
+    </>
+  );
+}
+
+function AddSubBtn({ onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ width: "100%", padding: "12px 16px", background: p ? C.card2 : "transparent", border: "none", color: C.blue, fontSize: 15, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, transition: "background 0.1s" }}>
+      <span style={{ fontSize: 19, lineHeight: 1, fontWeight: 300 }}>+</span> Adicionar subtarefa
+    </button>
+  );
+}
+
+function PlusBtn({ onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ width: 36, height: 36, borderRadius: "50%", background: C.card2, border: `1px solid rgba(255,255,255,0.14)`, color: C.blue, fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 1, boxShadow: p ? "none" : "0 2px 10px rgba(0,0,0,0.55)", transform: p ? "scale(0.86)" : "scale(1)", transition: "all 0.12s ease", cursor: "pointer" }}>+</button>
+  );
+}
+
+function CloseBadge({ onClick }) {
+  const { pressed: p, bind } = usePressable();
+  return (
+    <button onClick={onClick} {...bind} style={{ background: C.card2, border: "none", borderRadius: "50%", width: 28, height: 28, color: C.sub, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transform: p ? "scale(0.86)" : "scale(1)", transition: "transform 0.1s" }}>✕</button>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 300 }}>
+      <div style={{ background: C.card, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 430, padding: "26px 20px 50px", display: "flex", flexDirection: "column", gap: 10, maxHeight: "92vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: C.text }}>{title}</h2>
+          <CloseBadge onClick={onClose} />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function TaskRow({ task, tasks, fading, onAction, onToggle }) {
+  const { pressed: p, bind } = usePressable();
+  const st = getStatus(task); const over = st === ST.OVERDUE; const done = task.completed;
+  const pName = task.parentId ? tasks.find(x => x.id === task.parentId)?.name : null;
+  const dateStr = fmtDate(task.date, task.time);
+  return (
+    <div {...bind} style={{ display: "flex", alignItems: "center", padding: "13px 16px", gap: 13, opacity: fading === task.id ? 0 : done ? 0.4 : 1, transition: "opacity 0.34s", background: p ? "rgba(255,255,255,0.04)" : over && !done ? "rgba(255,59,48,0.05)" : "transparent" }}>
+      <CircleBtn active={over && !done} color={C.red} size={30} fsize={17} onClick={() => onAction(task.id)}>−</CircleBtn>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 17, color: done ? C.muted : C.text, textDecoration: done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</div>
+        {(dateStr || pName) && (
+          <div style={{ display: "flex", gap: 7, marginTop: 3 }}>
+            {dateStr && <span style={{ fontSize: 13, color: over && !done ? "#ff6b6b" : C.sub, fontWeight: over && !done ? 600 : 400 }}>{dateStr}</span>}
+            {pName && <span style={{ fontSize: 13, color: C.muted }}>↳ {pName}</span>}
+          </div>
+        )}
+      </div>
+      <CircleBtn active={done} color={C.green} size={30} fsize={14} onClick={() => onToggle(task.id)}>✓</CircleBtn>
+    </div>
+  );
+}
+
+const iS = { background: "transparent", border: "none", padding: "13px 14px", color: C.text, fontSize: 16, width: "100%", outline: "none", boxSizing: "border-box", colorScheme: "dark" };
+const fW = { background: C.card2, borderRadius: 12, border: `1px solid rgba(255,255,255,0.1)`, overflow: "hidden" };
+const lS = { display: "block", fontSize: 11, color: C.sub, marginBottom: 5, letterSpacing: 0.5, textTransform: "uppercase" };
+
+const FB_TYPES = [{ id: "sugestao", label: "💡 Sugestão" }, { id: "problema", label: "🐛 Problema" }, { id: "duvida", label: "❓ Dúvida" }];
+
+const NAV = [
+  { id: "hoje", label: "Hoje", icon: <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2.5"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+  { id: "projetos", label: "Projetos", icon: <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z"/><path d="M14 17.5h7M17.5 14v7"/></svg> },
+  { id: "sugestoes", label: "Sugestões", icon: <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> },
+  { id: "feedback", label: "Feedback", icon: <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+];
+
+const CONTACTS = [
+  { label: "📧 E-mail direto", sub: "contato@selfdo.app", action: () => window.open("mailto:contato@selfdo.app") },
+  { label: "🔒 Política de Privacidade", sub: "Como usamos seus dados", action: () => {} },
+  { label: "⚖️ Termos de Uso", sub: "Condições do serviço", action: () => {} },
+];
+
+export default function App() {
+  const [tasks, setTasks] = useState(INIT);
+  const [page, setPage] = useState("hoje");
+  const [fading, setFading] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [actionId, setActionId] = useState(null);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", date: TODAY, time: "", parentId: "" });
+  const [customDate, setCustomDate] = useState(off(1));
+  const [customTime, setCustomTime] = useState("");
+  const [addProjOpen, setAddProjOpen] = useState(false);
+  const [addSubId, setAddSubId] = useState(null);
+  const [projForm, setProjForm] = useState({ name: "", date: "", time: "" });
+  const [subForm, setSubForm] = useState({ name: "", date: "", time: "" });
+  const [previewTpl, setPreviewTpl] = useState(null);
+  const [imported, setImported] = useState({});
+  const [fbType, setFbType] = useState("sugestao");
+  const [fbMsg, setFbMsg] = useState("");
+  const [fbEmail, setFbEmail] = useState("");
+  const [fbSent, setFbSent] = useState(false);
+
+  const actionTask = tasks.find(t => t.id === actionId);
+  const toggle = id => { setFading(id); setTimeout(() => { setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)); setFading(null); }, 340); };
+  const del = () => { setTasks(p => p.filter(t => t.id !== actionId && t.parentId !== actionId)); setDeleteOpen(false); setActionId(null); };
+  const snooze = (date, time) => { setTasks(p => p.map(t => t.id === actionId ? { ...t, date, time: time || null, completed: false } : t)); setSnoozeOpen(false); setActionId(null); };
+  const addTask = () => { if (!form.name.trim()) return; setTasks(p => [...p, { id: uid++, name: form.name.trim(), date: form.date || null, time: form.time || null, parentId: form.parentId ? +form.parentId : null, completed: false }]); setForm({ name: "", date: TODAY, time: "", parentId: "" }); setAddOpen(false); };
+  const addProj = () => { if (!projForm.name.trim()) return; setTasks(p => [...p, { id: uid++, name: projForm.name.trim(), date: projForm.date || null, time: projForm.time || null, parentId: null, completed: false }]); setProjForm({ name: "", date: "", time: "" }); setAddProjOpen(false); };
+  const addSub = () => { if (!subForm.name.trim()) return; setTasks(p => [...p, { id: uid++, name: subForm.name.trim(), date: subForm.date || null, time: subForm.time || null, parentId: addSubId, completed: false }]); setSubForm({ name: "", date: "", time: "" }); setAddSubId(null); };
+  const importTpl = tpl => { const pid = uid++; setTasks(p => [...p, { id: pid, name: tpl.name, date: null, time: null, parentId: null, completed: false }, ...tpl.tasks.map(t => ({ id: uid++, name: t.name, date: null, time: t.time || null, parentId: pid, completed: false }))]); setImported(p => ({ ...p, [tpl.id]: true })); setPreviewTpl(null); };
+  const sendFb = () => { const s = encodeURIComponent(`[${fbType}] Feedback App`), b = encodeURIComponent(`Tipo: ${fbType}\n\n${fbMsg}\n\nEmail: ${fbEmail || "não informado"}`); window.open(`mailto:contato@selfdo.app?subject=${s}&body=${b}`); setFbSent(true); setTimeout(() => setFbSent(false), 3500); };
+
+  const sorted = [...tasks].sort((a, b) => { const d = getStatus(a) - getStatus(b); return d !== 0 ? d : (a.date && b.date ? a.date.localeCompare(b.date) : 0); });
+  const groups = sorted.reduce((acc, t) => { const s = getStatus(t); if (!acc[s]) acc[s] = []; acc[s].push(t); return acc; }, {});
+  const parents = tasks.filter(t => !t.parentId);
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif", maxWidth: 430, margin: "0 auto", paddingBottom: 92 }}>
+      <style>{`
+        *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
+        input::placeholder,textarea::placeholder{color:#636366;}
+        input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:pointer;}
+        select option{background:#2c2c2e;color:#fff;}
+        textarea{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;}
+        ::-webkit-scrollbar{width:0;}
+      `}</style>
+
+      {/* ── HOJE ── */}
+      {page === "hoje" && (
+        <div>
+          <div style={{ padding: "52px 20px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 13, color: C.muted }}>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</div>
+              <h1 style={{ margin: "3px 0 0", fontSize: 34, fontWeight: 700, letterSpacing: -0.5 }}>Hoje</h1>
+            </div>
+            <PlusBtn onClick={() => setAddOpen(true)} />
+          </div>
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {[ST.OVERDUE, ST.TODAY, ST.FUTURE, ST.DONE].map(status => {
+              const grp = groups[status];
+              if (!grp?.length) return null;
+              return (
+                <div key={status}>
+                  <div style={{ fontSize: 12, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 600, padding: "8px 4px 6px" }}>{ST_LABEL[status]}</div>
+                  <div style={{ background: C.card, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,0,0,0.45)" }}>
+                    {grp.map((t, i) => (
+                      <div key={t.id}>
+                        {i > 0 && <div style={{ height: "0.5px", background: C.border, marginLeft: 59 }} />}
+                        <TaskRow task={t} tasks={tasks} fading={fading} onAction={id => { setActionId(id); setSnoozeOpen(false); setDeleteOpen(false); }} onToggle={toggle} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {!tasks.length && <div style={{ textAlign: "center", padding: "80px 20px", color: C.muted }}><div style={{ fontSize: 44, marginBottom: 12 }}>✓</div><div style={{ fontSize: 17 }}>Nenhuma tarefa</div></div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── PROJETOS ── */}
+      {page === "projetos" && (
+        <div>
+          <div style={{ padding: "52px 20px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+            <h1 style={{ margin: 0, fontSize: 34, fontWeight: 700, letterSpacing: -0.5 }}>Projetos</h1>
+            <PlusBtn onClick={() => setAddProjOpen(true)} />
+          </div>
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+            {parents.map(proj => {
+              const subs = tasks.filter(t => t.parentId === proj.id);
+              const doneCnt = subs.filter(t => t.completed).length;
+              const pct = subs.length > 0 ? (doneCnt / subs.length) * 100 : 0;
+              const pDone = proj.completed;
+              return (
+                <div key={proj.id} style={{ background: C.card, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.5)" }}>
+                  <div style={{ padding: "16px 16px 10px", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 17, fontWeight: 600, color: pDone ? C.muted : C.text, textDecoration: pDone ? "line-through" : "none" }}>{proj.name}</div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+                        {proj.date && <span style={{ fontSize: 13, color: C.sub }}>{fmtDate(proj.date, proj.time)}</span>}
+                        {subs.length > 0 && <span style={{ fontSize: 13, color: C.sub }}>{doneCnt}/{subs.length} tarefas</span>}
+                      </div>
+                    </div>
+                    <CircleBtn active={pDone} color={C.green} size={30} fsize={14} onClick={() => toggle(proj.id)}>✓</CircleBtn>
+                  </div>
+                  {subs.length > 0 && (
+                    <div style={{ margin: "0 16px 10px", height: 4, background: C.card2, borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: pct === 100 ? C.green : C.blue, borderRadius: 2, transition: "width 0.4s ease" }} />
+                    </div>
+                  )}
+                  {subs.map(s => (
+                    <div key={s.id}>
+                      <div style={{ height: "0.5px", background: C.border }} />
+                      <div style={{ display: "flex", alignItems: "center", padding: "11px 16px", gap: 12, opacity: s.completed ? 0.42 : 1, transition: "opacity 0.3s" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 15, color: s.completed ? C.muted : C.text, textDecoration: s.completed ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
+                          {s.date && <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>{fmtDate(s.date, s.time)}</div>}
+                        </div>
+                        <CircleBtn active={s.completed} color={C.green} size={26} fsize={12} onClick={() => toggle(s.id)}>✓</CircleBtn>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ height: "0.5px", background: C.border }} />
+                  <AddSubBtn onClick={() => setAddSubId(proj.id)} />
+                </div>
+              );
+            })}
+            {!parents.length && <div style={{ textAlign: "center", padding: "80px 20px", color: C.muted }}><div style={{ fontSize: 44, marginBottom: 12 }}>📁</div><div style={{ fontSize: 17 }}>Nenhum projeto</div><div style={{ fontSize: 14, marginTop: 6 }}>Toque em + para criar</div></div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── SUGESTÕES ── */}
+      {page === "sugestoes" && (
+        <div>
+          <div style={{ padding: "52px 20px 16px" }}>
+            <div style={{ fontSize: 13, color: C.muted }}>Pronto para usar</div>
+            <h1 style={{ margin: "3px 0 0", fontSize: 34, fontWeight: 700, letterSpacing: -0.5 }}>Sugestões</h1>
+          </div>
+          <div style={{ padding: "4px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {TEMPLATES.map(tpl => <TplCard key={tpl.id} tpl={tpl} isImported={!!imported[tpl.id]} onClick={() => setPreviewTpl(tpl)} />)}
+          </div>
+        </div>
+      )}
+
+      {/* ── FEEDBACK ── */}
+      {page === "feedback" && (
+        <div style={{ padding: "52px 20px 20px" }}>
+          <div style={{ fontSize: 13, color: C.muted }}>Ajude a melhorar</div>
+          <h1 style={{ margin: "3px 0 24px", fontSize: 34, fontWeight: 700, letterSpacing: -0.5 }}>Feedback</h1>
+          {fbSent ? (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: 52, color: C.green, marginBottom: 14 }}>✓</div>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>Obrigado!</div>
+              <div style={{ fontSize: 14, color: C.sub, marginTop: 6 }}>Seu feedback foi enviado com sucesso.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <div style={lS}>Tipo</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {FB_TYPES.map(opt => <TypePill key={opt.id} opt={opt} active={fbType === opt.id} onClick={() => setFbType(opt.id)} />)}
+                </div>
+              </div>
+              <div>
+                <div style={lS}>Mensagem</div>
+                <div style={{ ...fW, borderRadius: 13 }}>
+                  <textarea placeholder="Descreva sua sugestão, problema ou dúvida..." value={fbMsg} onChange={e => setFbMsg(e.target.value)} style={{ ...iS, resize: "none", minHeight: 120 }} />
+                </div>
+              </div>
+              <div>
+                <div style={lS}>E-mail (opcional)</div>
+                <div style={{ ...fW, borderRadius: 13 }}>
+                  <input type="email" placeholder="Para receber nossa resposta" value={fbEmail} onChange={e => setFbEmail(e.target.value)} style={iS} />
+                </div>
+              </div>
+              <BtnPrimary onClick={sendFb} disabled={!fbMsg.trim()}>Enviar feedback</BtnPrimary>
+              <div style={{ background: C.card, borderRadius: 14, overflow: "hidden", marginTop: 4, boxShadow: "0 2px 12px rgba(0,0,0,0.35)" }}>
+                {CONTACTS.map((item, i) => <ContactRow key={i} item={item} index={i} isLast={i === CONTACTS.length - 1} />)}
+              </div>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted, paddingTop: 4 }}>Versão 1.0.0 · Feito com ♥ no Brasil</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── BOTTOM NAV ── */}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(10,10,12,0.96)", borderTop: `0.5px solid rgba(255,255,255,0.1)`, display: "flex", padding: "10px 0 26px" }}>
+        {NAV.map(tab => <NavTab key={tab.id} {...tab} active={page === tab.id} onClick={() => setPage(tab.id)} />)}
+      </div>
+
+      {/* ══ MODALS ══ */}
+      {addOpen && (
+        <Modal title="Nova Tarefa" onClose={() => setAddOpen(false)}>
+          <div style={fW}><input autoFocus placeholder="Nome da tarefa" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} onKeyDown={e => e.key === "Enter" && addTask()} style={iS} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div><label style={lS}>Data</label><div style={fW}><input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} style={iS} /></div></div>
+            <div><label style={lS}>Hora</label><div style={fW}><input type="time" value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))} placeholder="Selecionar" style={iS} /></div></div>
+          </div>
+          <div><label style={lS}>Tarefa mãe</label>
+            <div style={fW}><select value={form.parentId} onChange={e => setForm(p => ({ ...p, parentId: e.target.value }))} style={{ ...iS, cursor: "pointer" }}>
+              <option value="">— Nenhuma —</option>
+              {tasks.filter(t => !t.parentId && !t.completed).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select></div>
+          </div>
+          <BtnPrimary onClick={addTask} disabled={!form.name.trim()}>Adicionar tarefa</BtnPrimary>
+        </Modal>
+      )}
+
+      {actionId && !snoozeOpen && !deleteOpen && (
+        <Modal title={actionTask?.name ?? ""} onClose={() => setActionId(null)}>
+          <ARow icon="⏰" label="Adiar tarefa" sub="Escolher nova data ou hora" onClick={() => setSnoozeOpen(true)} />
+          <ARow icon="🗑" label="Excluir tarefa" danger onClick={() => setDeleteOpen(true)} />
+          <BtnSecondary onClick={() => setActionId(null)}>Cancelar</BtnSecondary>
+        </Modal>
+      )}
+
+      {snoozeOpen && (
+        <Modal title="Adiar para..." onClose={() => { setSnoozeOpen(false); setActionId(null); }}>
+          <ARow icon="🌙" label="Esta noite" sub="Hoje · 20:00" onClick={() => snooze(TODAY, "20:00")} />
+          <ARow icon="☀️" label="Amanhã de manhã" sub={`${off(1)} · 09:00`} onClick={() => snooze(off(1), "09:00")} />
+          <ARow icon="📅" label="Próxima semana" sub={off(7)} onClick={() => snooze(off(7), null)} />
+          <div style={{ background: C.card2, borderRadius: 13, border: `1px solid rgba(255,255,255,0.09)`, padding: "14px 16px" }}>
+            <label style={lS}>Data personalizada</label>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1, background: C.card3, borderRadius: 9, overflow: "hidden" }}><input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} style={{ ...iS, padding: "10px 12px" }} /></div>
+              <div style={{ flex: 1, background: C.card3, borderRadius: 9, overflow: "hidden" }}><input type="time" value={customTime} onChange={e => setCustomTime(e.target.value)} style={{ ...iS, padding: "10px 12px" }} /></div>
+            </div>
+            <BtnPrimary onClick={() => snooze(customDate, customTime || null)} noTop>Confirmar</BtnPrimary>
+          </div>
+          <BtnSecondary onClick={() => setSnoozeOpen(false)}>Voltar</BtnSecondary>
+        </Modal>
+      )}
+
+      {deleteOpen && (
+        <Modal title="Excluir tarefa?" onClose={() => { setDeleteOpen(false); setActionId(null); }}>
+          <p style={{ color: C.sub, fontSize: 15, margin: "0 0 8px" }}>"{actionTask?.name}" será removida permanentemente.</p>
+          <BtnPrimary onClick={del} color={C.red}>Excluir permanentemente</BtnPrimary>
+          <BtnSecondary onClick={() => setDeleteOpen(false)}>Cancelar</BtnSecondary>
+        </Modal>
+      )}
+
+      {addProjOpen && (
+        <Modal title="Novo Projeto" onClose={() => setAddProjOpen(false)}>
+          <div style={fW}><input autoFocus placeholder="Nome do projeto" value={projForm.name} onChange={e => setProjForm(p => ({ ...p, name: e.target.value }))} onKeyDown={e => e.key === "Enter" && addProj()} style={iS} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div><label style={lS}>Data</label><div style={fW}><input type="date" value={projForm.date} onChange={e => setProjForm(p => ({ ...p, date: e.target.value }))} style={iS} /></div></div>
+            <div><label style={lS}>Hora</label><div style={fW}><input type="time" value={projForm.time} onChange={e => setProjForm(p => ({ ...p, time: e.target.value }))} style={iS} /></div></div>
+          </div>
+          <BtnPrimary onClick={addProj} disabled={!projForm.name.trim()}>Criar Projeto</BtnPrimary>
+        </Modal>
+      )}
+
+      {addSubId && (
+        <Modal title="Nova Subtarefa" onClose={() => setAddSubId(null)}>
+          <div style={{ fontSize: 13, color: C.sub, marginBottom: 2 }}>em: {tasks.find(t => t.id === addSubId)?.name}</div>
+          <div style={fW}><input autoFocus placeholder="Nome da subtarefa" value={subForm.name} onChange={e => setSubForm(p => ({ ...p, name: e.target.value }))} onKeyDown={e => e.key === "Enter" && addSub()} style={iS} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div><label style={lS}>Data</label><div style={fW}><input type="date" value={subForm.date} onChange={e => setSubForm(p => ({ ...p, date: e.target.value }))} style={iS} /></div></div>
+            <div><label style={lS}>Hora</label><div style={fW}><input type="time" value={subForm.time} onChange={e => setSubForm(p => ({ ...p, time: e.target.value }))} style={iS} /></div></div>
+          </div>
+          <BtnPrimary onClick={addSub} disabled={!subForm.name.trim()}>Adicionar</BtnPrimary>
+        </Modal>
+      )}
+
+      {previewTpl && (
+        <Modal title={previewTpl.name} onClose={() => setPreviewTpl(null)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: previewTpl.color + "22", display: "flex", alignItems: "center", justifyContent: "center", color: previewTpl.color }}>{ICONS[previewTpl.icon]}</div>
+            <p style={{ color: C.sub, fontSize: 14, margin: 0 }}>{previewTpl.desc}</p>
+          </div>
+          <div style={{ background: C.card2, borderRadius: 13, overflow: "hidden" }}>
+            {previewTpl.tasks.map((t, i) => (
+              <div key={i} style={{ padding: "11px 16px", borderBottom: i < previewTpl.tasks.length - 1 ? `0.5px solid ${C.card}` : "none", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", border: `1.5px solid ${C.muted}`, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, color: C.text }}>{t.name}</div>
+                  {t.time && <div style={{ fontSize: 12, color: C.sub }}>{t.time}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {imported[previewTpl.id]
+            ? <div style={{ background: C.muted, borderRadius: 13, padding: 14, textAlign: "center", fontSize: 16, color: "#fff", marginTop: 4 }}>✓ Já importado</div>
+            : <BtnPrimary onClick={() => importTpl(previewTpl)}>Importar para Projetos</BtnPrimary>
+          }
+          <BtnSecondary onClick={() => setPreviewTpl(null)}>Cancelar</BtnSecondary>
+        </Modal>
+      )}
+    </div>
+  );
+}
